@@ -75,7 +75,10 @@ namespace AlgorithmComplexityTheory
 		static void Main(string[] args)
 		{
 			string interrupt_symbol = "q";
+			Console.WriteLine("Для выхода введите " + interrupt_symbol);
 			string input;
+
+			Console.WriteLine("Вариант 13. A = { w: w содержит ровно три 0 или ровно три 1 }");
 			while (true)
 			{
 				input = Console.ReadLine();
