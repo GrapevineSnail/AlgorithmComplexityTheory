@@ -11,11 +11,10 @@ namespace AlgorithmComplexityTheory
 		/// </summary>
 		static string HW1(string input)
 		{
-			List<int> states = new List<int>();//последовательность состояний детерминированного конечного автомата
 			int q = 0;//текущее состояние ДКА
-			string ans_no = "Не допустимое слово";
-			string ans_yes = "Допустимое слово";
-			string ans_exeption = "Неверная входная строка";
+			string ans_no = "\nНе допустимое слово";
+			string ans_yes = "\nДопустимое слово";
+			string ans_exeption = "\nНеверная входная строка";
 			string ans = "";
 			Dictionary<int, int[]> delta = new Dictionary<int, int[]>()
 			{
@@ -46,7 +45,7 @@ namespace AlgorithmComplexityTheory
 				[24] = new[] { 24, 24 },
 			};
 			int[] admissible_states = new int[] { 6, 9, 11, 13, 16, 17, 20, 22, 23 };
-			states.Add(q);
+			Console.Write(q.ToString() + ' ');
 			try
 			{
 				int a;
@@ -57,9 +56,8 @@ namespace AlgorithmComplexityTheory
 					if (a != 0 && a != 1)//если символ не входит в алфавит
 						throw new Exception(ans_exeption);
 					q = delta[q][a];//состояние меняется по предыдущему состоянию и входному символу
-					states.Add(q);//добавляем новое состояние в конец последовательности
+					Console.Write(q.ToString() + ' ');
 				}
-				ans = string.Join(" ", states) + '\n';
 				if (admissible_states.Contains(q))
 					ans += ans_yes;
 				else
