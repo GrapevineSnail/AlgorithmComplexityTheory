@@ -67,18 +67,44 @@ namespace AlgorithmComplexityTheory
 			return ans;
 		}
 
+		/// <summary>
+		/// для HW2
+		/// </summary>
+		class State
+		{
+			public State(int Q, string Stack) { q = Q; stack = Stack; }
+			public int q;
+			public string stack;
+			public string Peek()
+			{
+				return stack.Length != 0 ? stack.Last().ToString() : "";
+			}
+			public string Pop()
+			{
+				var ans = Peek();
+				stack = stack.Length != 0 ? stack.Remove(stack.Length - 1) : "";
+				return ans;
+			}
+			public void Push(string end)
+			{
+				stack += end;
+			}
+		}
 		static string HW2(string input)
 		{
-			int q = 0;//текущее состояние НКА
-			string ans_no = "\nНе допустимое слово";
-			string ans_yes = "\nДопустимое слово";
-			string ans_exeption = "\nНеверная входная строка";
+			string ans_no = " Не допустимое слово\n";
+			string ans_yes = " Допустимое слово\n";
+			string ans_exeption = " Неверная входная строка\n";
 			string ans = "";
 			string e = "";
 			string H = "#";
 			string O = "0";
 			string I = "1";
-			Dictionary<string, Dictionary <string, (string, int)>> SetDictItem((string, string, string, int)[] edge)
+			//для создания разных веток, пары состояние-стек
+			var branches_state = new List<State> { new State(0, "") };
+			var can_branch_read_next_symbol = new List<bool> { false }; //показывает, можем ли мы двигаться по строке далее
+																		//Либо там был эпсилон-переход и мы должны остаться на чтении того же символа.
+			Dictionary<string, Dictionary<string, (string, int)>> SetDictItem((string, string, string, int)[] edge)
 			{
 				var d = new Dictionary<string, Dictionary<string, (string, int)>> { };
 				foreach ((string, string, string, int) t in edge)
@@ -91,7 +117,7 @@ namespace AlgorithmComplexityTheory
 				}
 				return d;
 			}
-			Dictionary<int, Dictionary<string, Dictionary <string, (string, int)>>> delta = new Dictionary<int, Dictionary<string, Dictionary<string, (string, int)>>>()
+			var delta = new Dictionary<int, Dictionary<string, Dictionary<string, (string, int)>>>()
 			{
 				[0] = SetDictItem(new[] { (e, e, H, 1) }),
 				[1] = SetDictItem(new[] { (O, e, O, 2), (I, e, I, 3) }),
@@ -104,220 +130,130 @@ namespace AlgorithmComplexityTheory
 				[8] = SetDictItem(new[] { (O, H, H, 4), (I, e, I, 3) })
 			};
 			int[] admissible_states = new int[] { 0, 3, 4, 8 };
-			//для создания разных веток
-			List<Stack<string>> stack_list = new List<Stack<string>>() { new Stack<string>() { } };
-			List<int> q_list = new List<int>() { 0 };
-			void WriteState(int b)
+			void PrintBranch(int b)
 			{
-				Console.Write($"{b}=={q_list[b]}:{string.Join("_", stack_list[b].Select(x => x.ToString()).ToArray())}\n");
+				Console.WriteLine($"Ветка_{b}>> {branches_state[b].q}:{string.Join("", branches_state[b].stack.Select(x => x.ToString()).ToArray())}");
 			}
-			void next_branch(int branch, string a)
+			void PrintBranches()
 			{
-				var q = q_list[branch];
-				var stack = stack_list[branch];
-				string stack_top = stack.Count != 0 ? stack.Peek() : "abracadabra";
+				for (int b = 0; b < branches_state.Count; b++)
+					PrintBranch(b);
+				Console.WriteLine();
+			}
+			void IterateBranch(int branch, string a)
+			{
+				if (can_branch_read_next_symbol[branch])//если эта ветка уже готова читать следующий символ - ничего не ветвим
+					return;
+				int q = branches_state[branch].q;//текущее состояние для данной ветки
+				string stack = branches_state[branch].stack;//текущий стек для данной ветки
+				string stack_top = branches_state[branch].Peek();
 				string stack_push;
-				Stack<string> sb;
-				int qb;
-				void cur_branch(Stack<string> sb)
+				int q_next;
+				bool have_child = false;//показатель того, что мы пронаследовались хотя бы раз и можно удалять входную ветку branch
+										//эпсилон - это либо пустая строка, либо любой символ из алфавита
+										//состояние и стек меняются по предыдущему состоянию, входному символу, символу на стеке
+				void step_with_pop(string symbol_str, string symbol_stack, bool can_read)
 				{
-					sb.Push(stack_push);
-					q_list[branch] = qb;
-					stack_list[branch] = sb;
+					var dq = delta[q][symbol_str];
+					(stack_push, q_next) = dq[symbol_stack];
+					var st = new State(q_next, stack);
+					st.Pop();
+					st.Push(stack_push);
+					branches_state.Add(st);
+					can_branch_read_next_symbol.Add(can_read);
+					have_child = true;
 				}
-				void new_branch(Stack<string> sb)
+				void step_no_pop(string symbol_str, string symbol_stack, bool can_read)
 				{
-					sb.Push(stack_push);
-					q_list.Add(qb);
-					stack_list.Add(sb);
+					var dq = delta[q][symbol_str];
+					(stack_push, q_next) = dq[symbol_stack];
+					var st = new State(q_next, stack);
+					st.Push(stack_push);
+					branches_state.Add(st);
+					can_branch_read_next_symbol.Add(can_read);
+					have_child = true;
 				}
-				//эпсилон - это либо пустая строка, либо любой символ из алфавита
-				//состояние и стек меняются по предыдущему состоянию, входному символу, символу на стеке
-				var dqa = delta[q].ContainsKey(a) ? delta[q][a] : null;
-				bool avs = dqa != null ? dqa.ContainsKey(stack_top) : false;
-				bool ave = dqa != null ? dqa.ContainsKey(e) : false;
-				var dqe = delta[q].ContainsKey(e) ? delta[q][e] : null;
-				bool evs = dqe != null ? dqe.ContainsKey(stack_top) : false;
-				bool eve = dqe != null ? dqe.ContainsKey(e) : false;
-				if (avs)
+				if (a != e && delta[q].ContainsKey(a))
 				{
-					sb = stack;
-					(stack_push, qb) = dqa[sb.Pop()];
-					cur_branch(sb);
-					if (ave)
-					{
-						sb = stack;
-						(stack_push, qb) = dqa[e];
-						new_branch(sb);
-					}
-					if (evs)
-					{
-						sb = stack;
-						(stack_push, qb) = dqe[sb.Pop()];
-						new_branch(sb);
-					}
-					if (eve)
-					{
-						sb = stack;
-						(stack_push, qb) = dqe[e];
-						new_branch(sb);
-					}
+					if (stack_top != e && delta[q][a].ContainsKey(stack_top))
+						step_with_pop(a, stack_top, true);
+					if (delta[q][a].ContainsKey(e))
+						step_no_pop(a, e, true);
 				}
-				else if (ave)
+				if (delta[q].ContainsKey(e))
 				{
-					sb = stack;
-					(stack_push, qb) = dqa[e];
-					cur_branch(sb);
-					if (avs)
-					{
-						sb = stack;
-						(stack_push, qb) = dqa[sb.Pop()];
-						new_branch(sb);
+					if (stack_top != e && delta[q][e].ContainsKey(stack_top))
+						step_with_pop(e, stack_top, false);
+					if (delta[q][e].ContainsKey(e))
+						step_no_pop(e, e, false);
+				}
+				if (a != e)
+				{//прочитали нормальный символ
+					if (have_child)
+					{//когда разветвили, вышли из состояния, забываем предыдущее сосотояние
+						branches_state.RemoveAt(branch);
+						can_branch_read_next_symbol.RemoveAt(branch);
 					}
-					if (evs)
-					{
-						sb = stack;
-						(stack_push, qb) = dqe[sb.Pop()];
-						new_branch(sb);
-					}
-					if (eve)
-					{
-						sb = stack;
-						(stack_push, qb) = dqe[e];
-						new_branch(sb);
+					else
+					{//если не нашли правил, по которым ветвиться дальше, считаем узел обработанным
+						can_branch_read_next_symbol[branch] = true;
 					}
 				}
-				else if (evs)
-				{
-					sb = stack;
-					(stack_push, qb) = dqe[sb.Pop()];
-					cur_branch(sb);
-					if (avs)
-					{
-						sb = stack;
-						(stack_push, qb) = dqa[sb.Pop()];
-						new_branch(sb);
-					}
-					if (eve)
-					{
-						sb = stack;
-						(stack_push, qb) = dqe[e];
-						new_branch(sb);
-					}
-					if (eve)
-					{
-						sb = stack;
-						(stack_push, qb) = dqe[e];
-						new_branch(sb);
-					}
+				else
+				{//если "читать нечего" - передана пустая строка, то останавливаем алгоритм на этом состоянии, ветку не удаляем
+					can_branch_read_next_symbol[branch] = true;
 				}
-				else if (eve)
-				{
-					sb = stack;
-					(stack_push, qb) = dqe[e];
-					cur_branch(sb);
-					if (avs)
-					{
-						sb = stack;
-						(stack_push, qb) = dqa[sb.Pop()];
-						new_branch(sb);
-					}
-					if (ave)
-					{
-						sb = stack;
-						(stack_push, qb) = dqa[e];
-						new_branch(sb);
-					}
-					if (evs)
-					{
-						sb = stack;
-						(stack_push, qb) = dqe[sb.Pop()];
-						new_branch(sb);
-					}
-				}
-				/*
-				//if (delta[q].ContainsKey(a) && !delta[q].ContainsKey(e))
-				//{
-				//	var dqa = delta[q][a];
-				//	bool v1 = dqa.ContainsKey(stack_top);
-				//	bool v2 = dqa.ContainsKey(e);
-				//	if (v1 && !v2)
-				//	{
-				//		sb = stack;
-				//		(stack_push, qb) = dqa[sb.Pop()];
-				//		cur_branch(sb);
-				//	}
-				//	else if (!v1 && v2)
-				//	{
-				//		sb = stack;
-				//		(stack_push, qb) = dqa[e];
-				//		cur_branch(sb);
-				//	}
-				//	else if(v1 && v2)
-				//	{
-				//		sb = stack;
-				//		(stack_push, qb) = dqa[sb.Pop()];
-				//		cur_branch(sb);
-				//		sb = stack;
-				//		(stack_push, qb) = dqa[e];
-				//		new_branch(sb);
-				//	}
-				//}
-				//else if(!delta[q].ContainsKey(a) && delta[q].ContainsKey(e))
-				//{
-				//	var dqe = delta[q][e];
-				//	bool v1 = dqe.ContainsKey(stack_top);
-				//	bool v2 = dqe.ContainsKey(e);
-				//	if (v1 && !v2)
-				//	{
-				//		sb = stack;
-				//		(stack_push, qb) = dqe[sb.Pop()];
-				//		cur_branch(sb);
-				//	}
-				//	else if (!v1 && v2)
-				//	{
-				//		sb = stack;
-				//		(stack_push, qb) = dqe[e];
-				//		cur_branch(sb);
-				//	}
-				//	else if (v1 && v2)
-				//	{
-				//		sb = stack;
-				//		(stack_push, qb) = dqe[sb.Pop()];
-				//		cur_branch(sb);
-				//		sb = stack;
-				//		(stack_push, qb) = dqe[e];
-				//		new_branch(sb);
-				//	}
-				//}
-				//else if (delta[q].ContainsKey(a) && delta[q].ContainsKey(e))
-				//{
+			}
 
-				//}
-				*/
+			//List<State> prev_branches_state = branches_state;
+			//List<bool> prev_can_branch_read_next_symbol = can_branch_read_next_symbol;
+			void StepOnInput(string input_symbol)
+			{
+				//надо для этого символа пройтись по всем веткам
+				bool go_out = false;//прерывание циклов
+				while (can_branch_read_next_symbol.Any(x => x == false) && !go_out)
+				{//если много эпсилон-переходов, до их делаем до тех пор, пока ветка не готова считать следующий символ
+					for (int b = 0; b < can_branch_read_next_symbol.Count; b++)
+					{
+						if (!can_branch_read_next_symbol[b])
+							IterateBranch(b, input_symbol);
+						//тут по-хорошему надо обрабатывать любые возможные повторяющиеся циклы - хождения по кругу любой длины.
+						//Это задача сложная, на графы, поэтому обрабатываю только "хождение в одной вершине"
+						if (branches_state.Count > 1 && !branches_state[branches_state.Count - 1].Equals(branches_state[branches_state.Count - 2]))
+						{
+							go_out = true;
+							break;
+						}
+					}
+					PrintBranches();
+					//Не обрабатывается случай зацикливания, когда ничего не изменяется за проход, трудно отловить - тест 1011.
+					//if (prev_branches_state.Equals(branches_state) && prev_can_branch_read_next_symbol.Equals(can_branch_read_next_symbol))
+					//{
+					//	go_out = true;
+					//	break;
+					//}
+					//prev_branches_state = branches_state;
+					//prev_can_branch_read_next_symbol = can_branch_read_next_symbol;
+				}
 			}
 			try
 			{
-				//Console.Write(q.ToString() + ' ');
-				WriteState(0);
-				int i = 0;
-				while (i < input.Length)
+				PrintBranches();
+				for (int i = 0; i < input.Length; i++)
 				{
 					string a = input[i].ToString();
 					if (a != O && a != I)//если символ не входит в алфавит
 						throw new Exception(ans_exeption);
-					int b = 0;
-					while (b < q_list.Count)
-					{
-						next_branch(b, a);
-						WriteState(b);
-						b++;
-					}
-					i++;
+					StepOnInput(a);
+					can_branch_read_next_symbol = can_branch_read_next_symbol.Select(x => x = false).ToList();
 				}
-				for (int b = 0; b < q_list.Count; b++)
+				//когда строка слова закончилась, то надо проверить, остались ли в конечном состоянии непройденные эпсилон-переходы
+				//для этого надо предположить, что мы "не можем прочитать след. символ строки" ввиду того, что остались ещё ветки с эпсилонами
+				StepOnInput(e);
+				for (int b = 0; b < branches_state.Count; b++)
 				{
-					if (admissible_states.Contains(q_list[b]))
+					ans += $"Ветка_{b}>>";
+					if (admissible_states.Contains(branches_state[b].q))
 						ans += ans_yes;
 					else
 						ans += ans_no;
