@@ -102,8 +102,8 @@ namespace AlgorithmComplexityTheory
 			string I = "1";
 			//для создания разных веток, пары состояние-стек
 			var branches_state = new List<State> { new State(0, "") };
-			var can_branch_read_next_symbol = new List<bool> { false }; //показывает, можем ли мы двигаться по строке далее
-																		//Либо там был эпсилон-переход и мы должны остаться на чтении того же символа.
+			var can_branch_read_next_symbol = new List<bool> { false }; //показывает, можем ли мы двигаться по строке далее - читать следующий символ
+																		//Либо там был эпсилон-переход и мы должны остаться на уже прочитанном символе.
 			Dictionary<string, Dictionary<string, (string, int)>> SetDictItem((string, string, string, int)[] edge)
 			{
 				var d = new Dictionary<string, Dictionary<string, (string, int)>> { };
@@ -117,7 +117,7 @@ namespace AlgorithmComplexityTheory
 				}
 				return d;
 			}
-			var delta = new Dictionary<int, Dictionary<string, Dictionary<string, (string, int)>>>()
+			var delta = new Dictionary<int, Dictionary<string, Dictionary<string, (string, int)>>>()//набор правил перехода
 			{
 				[0] = SetDictItem(new[] { (e, e, H, 1) }),
 				[1] = SetDictItem(new[] { (O, e, O, 2), (I, e, I, 3) }),
@@ -129,7 +129,7 @@ namespace AlgorithmComplexityTheory
 				[7] = SetDictItem(new[] { (O, O, O, 7), (I, O, e, 6) }),
 				[8] = SetDictItem(new[] { (O, H, H, 4), (I, e, I, 3) })
 			};
-			int[] admissible_states = new int[] { 0, 3, 4, 8 };
+			int[] admissible_states = new int[] { 0, 3, 4, 8 };//допустимые состояния
 			void PrintBranch(int b)
 			{
 				Console.WriteLine($"Ветка_{b}>> {branches_state[b].q}:{string.Join("", branches_state[b].stack.Select(x => x.ToString()).ToArray())}");
@@ -140,52 +140,42 @@ namespace AlgorithmComplexityTheory
 					PrintBranch(b);
 				Console.WriteLine();
 			}
-			void IterateBranch(int branch, string a)
+			void IterateBranch(int branch, string a)//осуществляем ветвление по правилам перехода
 			{
 				if (can_branch_read_next_symbol[branch])//если эта ветка уже готова читать следующий символ - ничего не ветвим
 					return;
 				int q = branches_state[branch].q;//текущее состояние для данной ветки
 				string stack = branches_state[branch].stack;//текущий стек для данной ветки
 				string stack_top = branches_state[branch].Peek();
-				string stack_push;
-				int q_next;
 				bool have_child = false;//показатель того, что мы пронаследовались хотя бы раз и можно удалять входную ветку branch
-										//эпсилон - это либо пустая строка, либо любой символ из алфавита
-										//состояние и стек меняются по предыдущему состоянию, входному символу, символу на стеке
-				void step_with_pop(string symbol_str, string symbol_stack, bool can_read)
+				void step(string str_symbol, string stack_symbol, bool can_read)
 				{
-					var dq = delta[q][symbol_str];
-					(stack_push, q_next) = dq[symbol_stack];
-					var st = new State(q_next, stack);
-					st.Pop();
-					st.Push(stack_push);
-					branches_state.Add(st);
+					string push_stack_symbol;
+					int q_next;
+					(push_stack_symbol, q_next) = delta[q][str_symbol][stack_symbol];
+					var state = new State(q_next, stack);
+					if (stack_symbol != e)
+						state.Pop();
+					state.Push(push_stack_symbol);
+					branches_state.Add(state);
 					can_branch_read_next_symbol.Add(can_read);
 					have_child = true;
 				}
-				void step_no_pop(string symbol_str, string symbol_stack, bool can_read)
-				{
-					var dq = delta[q][symbol_str];
-					(stack_push, q_next) = dq[symbol_stack];
-					var st = new State(q_next, stack);
-					st.Push(stack_push);
-					branches_state.Add(st);
-					can_branch_read_next_symbol.Add(can_read);
-					have_child = true;
-				}
+				//эпсилон - это либо пустая строка, либо любой символ из алфавита
+				//состояние и стек меняются по предыдущему состоянию, входному символу, символу на стеке
 				if (a != e && delta[q].ContainsKey(a))
 				{
 					if (stack_top != e && delta[q][a].ContainsKey(stack_top))
-						step_with_pop(a, stack_top, true);
+						step(a, stack_top, true);
 					if (delta[q][a].ContainsKey(e))
-						step_no_pop(a, e, true);
+						step(a, e, true);
 				}
 				if (delta[q].ContainsKey(e))
 				{
 					if (stack_top != e && delta[q][e].ContainsKey(stack_top))
-						step_with_pop(e, stack_top, false);
+						step(e, stack_top, false);
 					if (delta[q][e].ContainsKey(e))
-						step_no_pop(e, e, false);
+						step(e, e, false);
 				}
 				if (a != e)
 				{//прочитали нормальный символ
@@ -200,41 +190,38 @@ namespace AlgorithmComplexityTheory
 					}
 				}
 				else
-				{//если "читать нечего" - передана пустая строка, то останавливаем алгоритм на этом состоянии, ветку не удаляем
+				{//если "читать нечего" - передана пустая строка (обычно конец)
+					if (have_child)
+					{//ветвиться можем только по пустому символу. если потомок найден и он равен родителю - состояние+стек,
+					 //то мы понимаем, что циклимся по одной вершине в эпсилон-переходе. тогда удаляем эту ветку и завершаем алгоритм
+						while (branches_state.Count != 1
+							&& branches_state[branch].q == branches_state[branches_state.Count - 1].q
+							&& branches_state[branch].stack == branches_state[branches_state.Count - 1].stack)
+						{//удалим одинакового родителя
+							branches_state.RemoveAt(branch);
+							can_branch_read_next_symbol.RemoveAt(branch);
+						}//потомок единственный уникальный выйдет из цикла
+					}
+					//"читать нечего" - передана пустая строка (обычно конец), то останавливаем алгоритм на этом состоянии, ветку не удаляем
 					can_branch_read_next_symbol[branch] = true;
 				}
 			}
-
-			//List<State> prev_branches_state = branches_state;
-			//List<bool> prev_can_branch_read_next_symbol = can_branch_read_next_symbol;
-			void StepOnInput(string input_symbol)
+			void StepOnInputWord(string input_symbol)
 			{
 				//надо для этого символа пройтись по всем веткам
-				bool go_out = false;//прерывание циклов
-				while (can_branch_read_next_symbol.Any(x => x == false) && !go_out)
+				can_branch_read_next_symbol = can_branch_read_next_symbol.Select(x => x = false).ToList();
+				while (can_branch_read_next_symbol.Any(x => x == false))
 				{//если много эпсилон-переходов, до их делаем до тех пор, пока ветка не готова считать следующий символ
 					for (int b = 0; b < can_branch_read_next_symbol.Count; b++)
 					{
 						if (!can_branch_read_next_symbol[b])
 							IterateBranch(b, input_symbol);
-						//тут по-хорошему надо обрабатывать любые возможные повторяющиеся циклы - хождения по кругу любой длины.
-						//Это задача сложная, на графы, поэтому обрабатываю только "хождение в одной вершине"
-						if (branches_state.Count > 1 && !branches_state[branches_state.Count - 1].Equals(branches_state[branches_state.Count - 2]))
-						{
-							go_out = true;
-							break;
-						}
 					}
 					PrintBranches();
-					//Не обрабатывается случай зацикливания, когда ничего не изменяется за проход, трудно отловить - тест 1011.
-					//if (prev_branches_state.Equals(branches_state) && prev_can_branch_read_next_symbol.Equals(can_branch_read_next_symbol))
-					//{
-					//	go_out = true;
-					//	break;
-					//}
-					//prev_branches_state = branches_state;
-					//prev_can_branch_read_next_symbol = can_branch_read_next_symbol;
 				}
+				//циклится по бесконечному эпсилон-переходу на
+				//1010, 1011, 01010, 01011 - где для строка недопустима и есть подстрока "1+0+1" и что-то после неё
+				//НКА верен - он и должен циклиться.
 			}
 			try
 			{
@@ -244,12 +231,11 @@ namespace AlgorithmComplexityTheory
 					string a = input[i].ToString();
 					if (a != O && a != I)//если символ не входит в алфавит
 						throw new Exception(ans_exeption);
-					StepOnInput(a);
-					can_branch_read_next_symbol = can_branch_read_next_symbol.Select(x => x = false).ToList();
+					StepOnInputWord(a);
 				}
 				//когда строка слова закончилась, то надо проверить, остались ли в конечном состоянии непройденные эпсилон-переходы
 				//для этого надо предположить, что мы "не можем прочитать след. символ строки" ввиду того, что остались ещё ветки с эпсилонами
-				StepOnInput(e);
+				StepOnInputWord(e);
 				for (int b = 0; b < branches_state.Count; b++)
 				{
 					ans += $"Ветка_{b}>>";
