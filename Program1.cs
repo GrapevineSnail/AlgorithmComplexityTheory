@@ -252,6 +252,114 @@ namespace AlgorithmComplexityTheory
 			return ans;
 		}
 
+		static string HW3(string input)
+		{
+			string ans_no = " False\n";
+			string ans_yes = " True\n";
+			string ans_exeption = " Неверная входная строка\n";
+			string ans = "";
+			char O = '0';
+			char I = '1';
+			string[] Q;//состояния
+			int n;//число состояний
+			char[] Sigma = new char[] { O, I };//алфавит
+			Dictionary<(string, char), (string, bool)> delta =
+				new Dictionary<(string, char), (string, bool)>() { };//набор правил перехода - дельта
+			string q0;//начальное состояние
+			string[] admissible_states_F;//допустимые состояния
+			void SetDictTriple((string, char, string) triple)
+			{
+				string q_input = triple.Item1;
+				char symbol = triple.Item2;
+				string q_next = triple.Item3;
+				delta[(q_input, symbol)] = (q_next, false);//пока ещё не проверенное
+			}
+			try
+			{
+				string[] M = input.Split(new string[] { "}{" }, StringSplitOptions.RemoveEmptyEntries);
+				if (M.Length != 5)
+					throw new Exception(ans_exeption);
+				M[0] = M[0].TrimStart('{');
+				M[4] = M[4].TrimEnd('}');
+				foreach (var item in M)
+					if (item.Contains("{") || item.Contains("}"))
+						throw new Exception(ans_exeption);
+
+				//парсим состояния
+				Q = M[0].Split(new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
+				n = Q.Length;
+
+				//парсим алфавит
+				string[] alphabet = M[1].Split(new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
+				if (alphabet.Length != 2)
+					throw new Exception(ans_exeption);
+				char a;
+				for (int i = 0; i <= 1; i++)
+					if (!char.TryParse(alphabet[i], out a) || (a != O && a != I))//!Sigma.Contains(a)) //если символ не входит в алфавит
+						throw new Exception(ans_exeption);
+
+				//парсим набор правил перехода
+				var Rules = M[2].Trim(new char[] { '<', '>' }).Split(new string[] { "><" }, StringSplitOptions.RemoveEmptyEntries);
+				if (Rules.Length != 2 * n)
+					throw new Exception(ans_exeption);
+				foreach (var r in Rules)
+				{
+					var rr = r.Split(new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
+					if (!char.TryParse(rr[1], out a) || (a != O && a != I))//!Sigma.Contains(a)) //если символ не входит в алфавит
+						throw new Exception(ans_exeption);
+					if (!Q.Contains(rr[0]) || !Q.Contains(rr[2]))
+						throw new Exception(ans_exeption);
+					if (delta.ContainsKey((rr[0], a)))
+						throw new Exception(ans_exeption);
+					SetDictTriple((rr[0], a, rr[2]));
+
+				}
+
+				//парсим начальное состояние
+				if (!Q.Contains(M[3]))
+					throw new Exception(ans_exeption);
+				q0 = M[3];
+
+				//парсим допустимые состояния
+				admissible_states_F = M[4].Split(new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
+				if (admissible_states_F.Length > n)
+					throw new Exception(ans_exeption);
+				foreach (var state in admissible_states_F)
+				{
+					if (!Q.Contains(state))
+						throw new Exception(ans_exeption);
+				}
+
+				//далее основной алгоритм
+				var v = q0;//текущее состояние
+				int ones = 0;//счётчик единиц
+				while (!delta.All(x => x.Value.Item2 == true))
+				{
+					var is_checked = delta[(v, O)].Item2;
+					var q_next = delta[(v, O)].Item1;
+					if (is_checked == false && ones % 2 == 1 && admissible_states_F.Contains(q_next))
+						return ans + ans_no;
+					delta[(v, O)] = (q_next, true);//пометим как проверенное правило
+
+					is_checked = delta[(v, I)].Item2;
+					q_next = delta[(v, I)].Item1;
+					if (is_checked == false)
+					{
+						ones++;
+						if (ones % 2 == 1 && admissible_states_F.Contains(q_next))
+							return ans + ans_no;
+					}
+					delta[(v, I)] = (q_next, true);//пометим как проверенное правило
+					v = q_next;
+				}
+				ans += ans_yes;
+			}
+			catch (Exception ex)
+			{
+				ans = ex.Message;
+			}
+			return ans;
+		}
 		/// <summary>
 		/// Запуск цикла считывания строк с консоли. Каждая строка обрабатывается функцией, передаваемой в параметрах
 		/// </summary>
@@ -276,7 +384,8 @@ namespace AlgorithmComplexityTheory
 		static void Main(string[] args)
 		{
 			//ConsoleInputCycle("Вариант 13. A = { w: w содержит ровно три 0 или ровно три 1 }", HW1);
-			ConsoleInputCycle("Вариант 13. B = {w: w содержит подстроку 01 столько же раз, сколько в начале w расположено 0}", HW2);
+			//ConsoleInputCycle("Вариант 13. B = {w: w содержит подстроку 01 столько же раз, сколько в начале w расположено 0}", HW2);
+			ConsoleInputCycle("Вариант 13. A = {<M> : M – ДКА, который не допускает строки, содержащие нечётное число 1}", HW3);
 
 			//Console.WriteLine("Press any key...");
 		}
