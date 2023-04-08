@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace AlgorithmComplexityTheory
@@ -360,6 +361,95 @@ namespace AlgorithmComplexityTheory
 			}
 			return ans;
 		}
+
+		static string HW4(string filename)
+		{
+			string ans_no = " False\n";
+			string ans_yes = " True\n";
+			string ans_exeption = " Неверный ввод\n";
+			string ans = "";
+			int n;//число вершин
+			int[,] M;//матрица смежности графа
+			try
+			{
+				//чтение из файла
+				string[] lines = File.ReadAllLines("HW4/" + filename).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+				ans += string.Join('\n', lines) + '\n';
+				n = lines.First().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Count();
+				if (n == 0)
+					throw new ArgumentException("Пустой файл");
+				M = new int[n, n];
+				for (int i = 0; i < n; i++)
+				{
+					string[] numbers = lines[i].Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToArray();
+					if (numbers.GetLength(0) != n)
+						throw new ArgumentException("Неверное количество символов");
+					int res;
+					for (int j = 0; j < n; j++)
+					{
+						if (int.TryParse(numbers[j], out res))
+							M[i, j] = res;
+						else
+							throw new ArgumentException("Неверный символ");
+						if (i > j && M[i, j] != M[j, i])
+							throw new ArgumentException("Матрица не симметричная");
+					}
+				}
+
+				//основной алгоритм
+				Queue<int> Q = new Queue<int>();//очередь для работы алгоритма (BFS)
+				int[] colors = new int[n];
+				for (int i = 0; i < n; i++)
+				{
+					if (M[i, i] == 1)
+					{//когда есть петля
+						ans += ans_no;
+						return ans;
+					}
+					colors[i] = 0;
+				}
+				int point = 0;//индекс остановки в массиве цветов
+				int v;
+				while (point < n)
+				{
+					if (colors[point] == 0)
+					{
+						colors[point] = 1;
+						Q.Enqueue(point);
+						while (Q.Count() > 0)
+						{
+							v = Q.Dequeue();
+							var col = (colors[v] == 1) ? 2 : 1;
+							for (int j = 0; j < n; j++)
+							{
+								if (M[v, j] == 1)
+								{
+									if (colors[j] == 0)
+									{
+										colors[j] = col;
+										Q.Enqueue(j);
+									}
+									else if ((colors[j] == 1 && col == 2) || (colors[j] == 2 && col == 1))
+									{
+										ans += ans_no;
+										return ans;
+									}
+								}
+							}
+						}
+					}
+					else
+						point++;
+				}
+				ans += ans_yes;
+			}
+			catch (Exception ex)
+			{
+				ans = ex.Message;
+			}
+			return ans;
+		}
+
 		/// <summary>
 		/// Запуск цикла считывания строк с консоли. Каждая строка обрабатывается функцией, передаваемой в параметрах
 		/// </summary>
@@ -385,7 +475,8 @@ namespace AlgorithmComplexityTheory
 		{
 			//ConsoleInputCycle("Вариант 13. A = { w: w содержит ровно три 0 или ровно три 1 }", HW1);
 			//ConsoleInputCycle("Вариант 13. B = {w: w содержит подстроку 01 столько же раз, сколько в начале w расположено 0}", HW2);
-			ConsoleInputCycle("Вариант 13. A = {<M> : M – ДКА, который не допускает строки, содержащие нечётное число 1}", HW3);
+			//ConsoleInputCycle("Вариант 13. A = {<M> : M – ДКА, который не допускает строки, содержащие нечётное число 1}", HW3);
+			ConsoleInputCycle("Вариант 13. Проверка, двудольный ли граф.", HW4);
 
 			//Console.WriteLine("Press any key...");
 		}
