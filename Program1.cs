@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -460,6 +461,7 @@ namespace AlgorithmComplexityTheory
 			string interrupt_symbol = "q";
 			Console.WriteLine("Для выхода введите " + interrupt_symbol);
 			string input;
+			Stopwatch st = new Stopwatch();//таймер для измерения времени выполнения программы
 
 			Console.WriteLine(invite);
 			while (true)
@@ -467,7 +469,11 @@ namespace AlgorithmComplexityTheory
 				input = Console.ReadLine();
 				if (input == interrupt_symbol)//выход из цикла консоли по управляющему символу
 					break;
+				st.Reset();
+				st.Start();
 				Console.WriteLine(f(input));
+				st.Stop();
+				Console.WriteLine($"Время выполнения: {st.Elapsed.TotalSeconds} сек.\n");
 			}
 		}
 
