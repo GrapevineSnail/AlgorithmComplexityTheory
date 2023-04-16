@@ -8,6 +8,8 @@ namespace AlgorithmComplexityTheory
 {
 	class Program1
 	{
+		static Stopwatch watch = new Stopwatch();//таймер для измерения времени выполнения программы
+
 		static string HW1(string input)
 		{
 			int q = 0;//текущее состояние ДКА
@@ -451,6 +453,115 @@ namespace AlgorithmComplexityTheory
 			return ans;
 		}
 
+		static string HW5(string filename)
+		{
+			string ans_no = " False\n";
+			string ans_yes = " True\n";
+			string ans_exeption = " Неверный ввод\n";
+			string ans = "";
+			int n;//число вершин
+			int[,] M;//матрица смежности графа
+			int[] parse_line(string line)
+			{
+				string[] numbers_str = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToArray();
+				int[] numbers_int = new int[numbers_str.GetLength(0)];
+				for (int j = 0; j < numbers_int.GetLength(0); j++)
+				{
+					if (!int.TryParse(numbers_str[j], out numbers_int[j]))
+						throw new ArgumentException("Неверный символ");
+				}
+				return numbers_int;
+			}
+			try
+			{
+				//чтение матрицы из файла
+				string[] lines = File.ReadAllLines("HW5/" + filename).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+				ans += string.Join('\n', lines) + '\n';
+				n = parse_line(lines.First()).Count();
+				if (n == 0)
+					throw new ArgumentException("Пустой файл");
+				M = new int[n, n];
+				for (int i = 0; i < n; i++)
+				{
+					int[] numbers = parse_line(lines[i]);
+					if (numbers.GetLength(0) != n)
+						throw new ArgumentException("Неверное количество символов");
+					for (int j = 0; j < n; j++)
+					{
+						M[i, j] = numbers[j];
+						if (i > j && M[i, j] != M[j, i])
+							throw new ArgumentException("Матрица не симметричная");
+					}
+				}
+
+
+				//чтение списка удаляемых вершин
+				int[] certificate = parse_line(Console.ReadLine()).Select(x => x - 1).ToArray();
+
+				//основной алгоритм
+				var M_new = new int[n - certificate.Length, n - certificate.Length];
+				int[] colors = Enumerable.Repeat(0, n).ToArray();
+				int ii = 0;
+				for (int i = 0; i < n; i++)
+					if (!certificate.Contains(i))
+					{
+						int jj = 0;
+						for (int j = 0; j < n; j++)
+							if (!certificate.Contains(j))
+							{
+								M_new[ii, jj] = M[i, j];
+								jj++;
+							}
+						ii++;
+					}
+
+				M = M_new;
+				n = M.GetLength(0);
+
+				bool dfs(int v, int predecessor)
+				{
+					bool ans = true;
+					colors[v] = 1;
+					for (int j = 0; j < n; j++)
+						if (M[v, j] > 0 && j != predecessor)
+						{
+							if (colors[j] != 1)
+								ans = dfs(j, v);
+							else//есть цикл
+								ans = false;
+							if (ans == false)
+								break; 
+						}
+					colors[v] = 2;
+					return ans;
+				}
+
+				watch.Restart();
+
+				int point = 0;//индекс остановки в массиве цветов
+				while (point < n)
+				{
+					if (colors[point] == 0)
+					{
+						if (dfs(point, -1) == false)
+						{
+							ans += ans_no;
+							return ans;
+						}
+					}
+					else
+						point++;
+				}
+				ans += ans_yes;
+			}
+			catch (Exception ex)
+			{
+				ans = ans_exeption + ex.Message;
+			}
+			return ans;
+		}
+
+
 		/// <summary>
 		/// Запуск цикла считывания строк с консоли. Каждая строка обрабатывается функцией, передаваемой в параметрах
 		/// </summary>
@@ -461,7 +572,6 @@ namespace AlgorithmComplexityTheory
 			string interrupt_symbol = "q";
 			Console.WriteLine("Для выхода введите " + interrupt_symbol);
 			string input;
-			Stopwatch st = new Stopwatch();//таймер для измерения времени выполнения программы
 
 			Console.WriteLine(invite);
 			while (true)
@@ -469,11 +579,11 @@ namespace AlgorithmComplexityTheory
 				input = Console.ReadLine();
 				if (input == interrupt_symbol)//выход из цикла консоли по управляющему символу
 					break;
-				st.Reset();
-				st.Start();
+
+				watch.Restart();
 				Console.WriteLine(f(input));
-				st.Stop();
-				Console.WriteLine($"Время выполнения: {st.Elapsed.TotalSeconds} сек.\n");
+				watch.Stop();
+				Console.WriteLine($"Время выполнения: {watch.Elapsed.TotalSeconds} сек.\n");
 			}
 		}
 
@@ -482,7 +592,8 @@ namespace AlgorithmComplexityTheory
 			//ConsoleInputCycle("Вариант 13. A = { w: w содержит ровно три 0 или ровно три 1 }", HW1);
 			//ConsoleInputCycle("Вариант 13. B = {w: w содержит подстроку 01 столько же раз, сколько в начале w расположено 0}", HW2);
 			//ConsoleInputCycle("Вариант 13. A = {<M> : M – ДКА, который не допускает строки, содержащие нечётное число 1}", HW3);
-			ConsoleInputCycle("Вариант 13. Проверка, двудольный ли граф.", HW4);
+			//ConsoleInputCycle("Вариант 13. Проверка, двудольный ли граф.", HW4);
+			ConsoleInputCycle("Вариант 13. Верификация графа: проверка на цикличность.", HW5);
 
 			//Console.WriteLine("Press any key...");
 		}
