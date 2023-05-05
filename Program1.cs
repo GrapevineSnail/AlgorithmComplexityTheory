@@ -530,7 +530,7 @@ namespace AlgorithmComplexityTheory
 							else//есть цикл
 								ans = false;
 							if (ans == false)
-								break; 
+								break;
 						}
 					colors[v] = 2;
 					return ans;
@@ -561,6 +561,156 @@ namespace AlgorithmComplexityTheory
 			return ans;
 		}
 
+		/// <summary>
+		/// для HW6
+		/// </summary>
+		class BoardState
+		{
+			public BoardState() { }
+			//public BoardState(int Q, string Stack) { q = Q; stack = Stack; }
+			const int EMPTY = 0;   //обозначает пустые клеточки
+			const int PLAYER1 = 1; //обозначает знак (крестик, нолик и т.д.) какого-либо игрока
+			const int PLAYER2 = 2;
+			public int n = 0;//количество строк поля
+			public int m = 0;//количество столбцов поля
+			public int empty_cells_cnt;//количество пустых клеток
+			public int[,] Board;//матрица поля			
+			public BoardState parent; //предыдущее состояние игровой доски
+			public List<BoardState> children; //следующие состояния игровой доски
+
+			public string stack;
+			public string Peek()
+			{
+				return stack.Length != 0 ? stack.Last().ToString() : "";
+			}
+			public string Pop()
+			{
+				var ans = Peek();
+				stack = stack.Length != 0 ? stack.Remove(stack.Length - 1) : "";
+				return ans;
+			}
+			public void Push(string end)
+			{
+				stack += end;
+			}
+		}
+		static string HW6(string _)
+		{
+			/*
+			  | 0 | 1 | 2 | 3 | 4 |
+			-     +---+---+---+
+			0     |   |   |   |
+			- +---+---+---+---+---+
+			1 |   |   |   |   |   |
+			- +---+---+---+---+---+
+			2     |   |   |   |
+			-     +---+---+---+
+			*/
+			string ans_exeption = " Неверный ввод\n";
+			string ans = "";
+			int n = 3;//количество строк поля
+			int m = 5;//количество столбцов поля
+
+			string PrintBoardState(int[,] B)
+			{
+				string response = "";
+				try
+				{
+					if (B.GetLength(0) != n || B.GetLength(1) != m)
+						throw new ArgumentException("Неправильная матрица доски");
+					Dictionary<int, string> sign = new Dictionary<int, string>()
+					{
+						{ 0, " " },
+						{ 1, "X" },
+						{ 2, "O" }
+					};
+					string txt_columns = "  | 0 | 1 | 2 | 3 | 4 |\n";
+					string[] txt_rows = { "0", "1", "2" };
+					string txt_sep1 = "-     +---+---+---+\n";
+					string txt_sep2 = "- +---+---+---+---+---+\n";
+					string vert_sep = "|";
+					string print_cell(int i, int j)
+					{
+						return vert_sep + String.Format($" {{0,-{1}}} ", B[i, j]);
+					}
+
+					response += txt_columns;
+					response += txt_sep1;
+					for (int i = 0; i < n; i++)
+					{
+						response += txt_rows[i] + " ";
+						if (i == 1)
+							response += print_cell(i, 0);
+						else
+							response += "    ";
+						for (int j = 1; j < m - 1; j++)
+							response += print_cell(i, j);
+						if (i == 1)
+							response += print_cell(i, 4);
+						response += vert_sep + "\n";
+						if (i == 0 || i == 1)
+							response += txt_sep2;
+					}
+					response += txt_sep1;
+				}
+				catch (Exception ex)
+				{
+					response += ex.Message;
+				}
+				Console.WriteLine(response);
+				return response;
+			}
+
+			int[] parse_line(string line) // читает строку целых чисел, разделённых пробелами
+			{
+				string[] numbers_str = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToArray();
+				int[] numbers_int = new int[numbers_str.GetLength(0)];
+				for (int j = 0; j < numbers_int.GetLength(0); j++)
+				{
+					if (!int.TryParse(numbers_str[j], out numbers_int[j]))
+						throw new ArgumentException("Неверный символ");
+				}
+				return numbers_int;
+			}
+
+			try
+			{
+				int[,] EmptyBoard = new int[n, m];
+				for (int i = 0; i < n; i++)
+				{
+					for (int j = 0; j < m; j++)
+					{
+						EmptyBoard[i, j] = 0;
+					}
+				}
+			State_printing:
+				PrintBoardState(EmptyBoard);
+				int[] input_sign_coords = parse_line(Console.ReadLine()).ToArray();
+				try
+				{
+					if (input_sign_coords.Length != 2)
+						throw new ArgumentException("Неверное количество координат");
+					int ii = input_sign_coords[0];//строка
+					int jj = input_sign_coords[1];//столбец
+					if (!(0 <= ii && ii < n && 0 <= jj && jj < m) 
+						// || тут  0 0 и 0 n-1 и в последней строке не играются
+						)
+						throw new ArgumentException("Неверные координаты");
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine(ex.Message);
+					goto State_printing;
+				}
+
+			}
+			catch (Exception ex)
+			{
+				ans = ans_exeption + ex.Message;
+			}
+			return ans;
+		}
+
 
 		/// <summary>
 		/// Запуск цикла считывания строк с консоли. Каждая строка обрабатывается функцией, передаваемой в параметрах
@@ -570,8 +720,8 @@ namespace AlgorithmComplexityTheory
 		static void ConsoleInputCycle(string invite, Func<string, string> f)
 		{
 			string interrupt_symbol = "q";
-			Console.WriteLine("Для выхода введите " + interrupt_symbol);
 			string input;
+			Console.WriteLine("Для выхода введите " + interrupt_symbol);
 
 			Console.WriteLine(invite);
 			while (true)
@@ -593,7 +743,8 @@ namespace AlgorithmComplexityTheory
 			//ConsoleInputCycle("Вариант 13. B = {w: w содержит подстроку 01 столько же раз, сколько в начале w расположено 0}", HW2);
 			//ConsoleInputCycle("Вариант 13. A = {<M> : M – ДКА, который не допускает строки, содержащие нечётное число 1}", HW3);
 			//ConsoleInputCycle("Вариант 13. Проверка, двудольный ли граф.", HW4);
-			ConsoleInputCycle("Вариант 13. Верификация графа: проверка на цикличность.", HW5);
+			//ConsoleInputCycle("Вариант 13. Верификация графа: проверка на цикличность.", HW5);
+			ConsoleInputCycle("Вариант 13. Крестики-нолики на расширенном поле.", HW6);
 
 			//Console.WriteLine("Press any key...");
 		}
