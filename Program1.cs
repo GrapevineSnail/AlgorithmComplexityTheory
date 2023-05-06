@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -9,6 +10,7 @@ namespace AlgorithmComplexityTheory
 	class Program1
 	{
 		static Stopwatch watch = new Stopwatch();//таймер для измерения времени выполнения программы
+		static string interrupt_symbol = "q";//символ для выхода из программы
 
 		static string HW1(string input)
 		{
@@ -564,34 +566,71 @@ namespace AlgorithmComplexityTheory
 		/// <summary>
 		/// для HW6
 		/// </summary>
-		class BoardState
+		class BoardState : ICloneable
 		{
-			public BoardState() { }
-			//public BoardState(int Q, string Stack) { q = Q; stack = Stack; }
-			const int EMPTY = 0;   //обозначает пустые клеточки
-			const int PLAYER1 = 1; //обозначает знак (крестик, нолик и т.д.) какого-либо игрока
-			const int PLAYER2 = 2;
-			public int n = 0;//количество строк поля
-			public int m = 0;//количество столбцов поля
-			public int empty_cells_cnt;//количество пустых клеток
-			public int[,] Board;//матрица поля			
-			public BoardState parent; //предыдущее состояние игровой доски
-			public List<BoardState> children; //следующие состояния игровой доски
-
-			public string stack;
-			public string Peek()
+			private BoardState(int[,] matrix)
 			{
-				return stack.Length != 0 ? stack.Last().ToString() : "";
+				var n = matrix.GetLength(0);
+				var m = matrix.GetLength(1);
+				Board = new int[n, m];
+				for (int i = 0; i < n; i++)
+					for (int j = 0; j < m; j++)
+						Board[i, j] = matrix[i, j];
 			}
-			public string Pop()
+			public BoardState(int n, int m, List<(int, int)> used_coords, int empty_sign)
 			{
-				var ans = Peek();
-				stack = stack.Length != 0 ? stack.Remove(stack.Length - 1) : "";
+				EMPTY = empty_sign;
+				Board = new int[n, m];
+				for (int i = 0; i < n; i++)
+					for (int j = 0; j < m; j++)
+						Board[i, j] = EMPTY;
+				empty_cells_cnt = 0;
+				foreach ((int i, int j) crd in used_coords)
+					if (Board[crd.i, crd.j] == EMPTY)
+						empty_cells_cnt += 1;
+			}
+			public int[,] Board;                                       //матрица поля
+			public int empty_cells_cnt;                                //количество пустых клеток
+			public int who_made_the_move;                                       //какой игрок сделал ход в этой доске
+			public (int i, int j) move;                                         //куда игрок пошёл
+			public BoardState parent = null;                                    //предыдущее состояние игровой доски
+			public List<BoardState> children = new List<BoardState>();          //следующие состояния игровой доски
+			public double win_proportion;                                       //доля выигрышей
+			public double draw_proportion;                                      //доля ничьих
+			public double losing_proportion;                                    //доля проигрышей
+			public bool is_terminating = false;                                 //является ли состояние завершающим игру
+			int EMPTY;                                                          //обозначает пустую клетку
+
+
+			public List<(int, int)> EmptyCells(List<(int, int)> used_coords)
+			{
+				List<(int, int)> ans = new List<(int, int)>();
+				foreach ((int i, int j) crd in used_coords)
+					if (Board[crd.i, crd.j] == EMPTY)
+						ans.Add(crd);
 				return ans;
 			}
-			public void Push(string end)
+
+			public bool Is_equivalent(BoardState other, List<(int, int)> used_coords)
 			{
-				stack += end;
+				foreach ((int i, int j) crd in used_coords)
+					if (Board[crd.i, crd.j] != other.Board[crd.i, crd.j])
+						return false;
+				return true;
+			}
+
+			public object Clone()
+			{
+				var ans = new BoardState(Board);
+				ans.empty_cells_cnt = empty_cells_cnt;
+				ans.who_made_the_move = who_made_the_move;
+				ans.move = move;
+				ans.win_proportion = win_proportion;
+				ans.draw_proportion = draw_proportion;
+				ans.losing_proportion = losing_proportion;
+				ans.is_terminating = is_terminating;
+				ans.EMPTY = EMPTY;
+				return ans;
 			}
 		}
 		static string HW6(string _)
@@ -607,9 +646,149 @@ namespace AlgorithmComplexityTheory
 			-     +---+---+---+
 			*/
 			string ans_exeption = " Неверный ввод\n";
+			string ans_end = " Игра окончена\n";
 			string ans = "";
 			int n = 3;//количество строк поля
 			int m = 5;//количество столбцов поля
+			List<(int, int)> used_coords = new List<(int, int)>(); //употребляемые координаты
+			for (int i = 0; i < n; i++)
+				for (int j = 0; j < m; j++)
+					used_coords.Add((i, j));
+			//var deleted_cells = new List<(int, int)> { (0, 0), (0, 4), (2, 0), (2, 4) };
+			var deleted_cells = new List<(int, int)> { (0, 0), (0, 4), (2, 0), (2, 4), (1,0), (1,4)
+			,(2,1),(2,2),(2,3)};
+			used_coords = used_coords.Except(deleted_cells).ToList();
+			const int EMPTY = 0; //обозначение пустой клеточки в матрице
+			const int PLAYER1 = 1; // обозначает знак (крестик, нолик и т.д.) игрока
+			const int PLAYER2 = 2;
+			BoardState current_state_in_tree; //текущее место в дереве в процессе игры
+
+			int other_player(int s)//вернет знак другого игрока, не того, кто в аргументе
+			{
+				return s % 2 + 1;
+			}
+
+			BoardState MakePlayTree()
+			{
+				List<(int, int)[]> get_lines(int i, int j)//список линий из трёх клеток в которых участвует клектка i,j
+				{
+					var existing_lines = new List<(int, int)[]>();
+					bool is_line_exist((int, int)[] line)
+					{
+						foreach (var crd in line)
+							if (!used_coords.Contains(crd))
+								return false;
+						return true;
+					}
+					for (int k = 0; k < 3; k++)
+					{
+						var vertical = new (int, int)[] {
+							(i, j - 2 + k),
+							(i, j - 1 + k),
+							(i, j + k    ) };// это |
+						var horizontal = new (int, int)[] {
+							(i - 2 + k, j),
+							(i - 1 + k, j),
+							(i + k,     j) };// это -
+						var diagonal_backslash = new (int, int)[] {
+							(i - 2 + k, j - 2 + k),
+							(i - 1 + k, j - 1 + k),
+							(i + k,     j + k    ) };// это \
+						var diagonal_slash = new (int, int)[] {
+							(i + 2 - k, j - 2 + k),
+							(i + 1 - k, j - 1 + k),
+							(i - k,     j + k    ) };// это /
+						foreach (var ln in
+							new (int, int)[][] { vertical, horizontal, diagonal_backslash, diagonal_slash })
+							if (is_line_exist(ln))
+								existing_lines.Add(ln);
+					}
+					return existing_lines;
+				}
+
+				bool is_terminated(BoardState B, int last_move_i, int last_move_j)
+				{//при ходе на i,j может возникнуть выигрышное состояние
+					bool is_winning_line(int i, int j, int player)
+					{//есть ли выигрышная линия с участием клетки i,j
+						var lines = get_lines(i, j);
+						foreach ((int i, int j)[] ln in lines)
+							if (ln.All(x => B.Board[x.i, x.j] == player))
+								return true;
+						return false;
+					}
+					//если есть три в ряд - кто-то выиграл, другой - проиграл
+					//выигрыш высчитывается для компьютера
+					if (is_winning_line(last_move_i, last_move_j, PLAYER1))
+					{
+						B.win_proportion = 1;
+						B.draw_proportion = 0;
+						B.losing_proportion = 0;
+						return true;
+					}
+					else if (is_winning_line(last_move_i, last_move_j, PLAYER2))
+					{
+						B.win_proportion = 0;
+						B.draw_proportion = 0;
+						B.losing_proportion = 1;
+						return true;
+					}
+					else if (B.empty_cells_cnt == 0)// если нет трёх в ряд, но при этом заполнено всё поле - ничья
+					{
+						B.win_proportion = 0;
+						B.draw_proportion = 1;
+						B.losing_proportion = 0;
+						return true;
+					}
+					return false;
+				}
+
+				void embranchment(BoardState B)
+				{
+					if (B.is_terminating)
+						return;
+					var next_sign = other_player(B.who_made_the_move);
+					var empty_coords = B.EmptyCells(used_coords);
+					foreach ((int i, int j) crd in empty_coords)
+					{
+						BoardState child = (BoardState)(B.Clone());
+						child.Board[crd.i, crd.j] = next_sign;
+						child.who_made_the_move = next_sign;
+						child.move = crd;
+						child.empty_cells_cnt = B.empty_cells_cnt - 1;
+						child.is_terminating = is_terminated(child, crd.i, crd.j);
+						child.parent = B;
+						B.children.Add(child);
+					}
+				}
+				BoardState root = new BoardState(n, m, used_coords, EMPTY);
+				//заполнение дерева с одновременным обходом в глубину и подсчётом долей выигрышных состояний
+				Stack<BoardState> stack = new Stack<BoardState>();
+				stack.Push(root);
+				while (stack.Count != 0)
+				{
+					var cur_board = stack.Pop();
+					if (!cur_board.is_terminating)
+					{
+						embranchment(cur_board);
+						if (cur_board.children.All(x => x.is_terminating == true))
+						{
+							int children_cnt = cur_board.children.Count;
+							cur_board.win_proportion =
+								cur_board.children.Select(x => x.win_proportion).Sum() / children_cnt;
+							cur_board.draw_proportion =
+								cur_board.children.Select(x => x.draw_proportion).Sum() / children_cnt;
+							cur_board.losing_proportion =
+								cur_board.children.Select(x => x.losing_proportion).Sum() / children_cnt;
+						}
+						else
+						{
+							foreach (BoardState b in cur_board.children.Where(x => !x.is_terminating).ToList())
+								stack.Push(b);
+						}
+					}
+				}
+				return root;
+			}
 
 			string PrintBoardState(int[,] B)
 			{
@@ -620,9 +799,9 @@ namespace AlgorithmComplexityTheory
 						throw new ArgumentException("Неправильная матрица доски");
 					Dictionary<int, string> sign = new Dictionary<int, string>()
 					{
-						{ 0, " " },
-						{ 1, "X" },
-						{ 2, "O" }
+						{ EMPTY, " " },
+						{ PLAYER1, "X" },
+						{ PLAYER2, "O" }
 					};
 					string txt_columns = "  | 0 | 1 | 2 | 3 | 4 |\n";
 					string[] txt_rows = { "0", "1", "2" };
@@ -631,7 +810,7 @@ namespace AlgorithmComplexityTheory
 					string vert_sep = "|";
 					string print_cell(int i, int j)
 					{
-						return vert_sep + String.Format($" {{0,-{1}}} ", B[i, j]);
+						return vert_sep + String.Format($" {{0,-{1}}} ", sign[B[i, j]]);
 					}
 
 					response += txt_columns;
@@ -673,36 +852,98 @@ namespace AlgorithmComplexityTheory
 				return numbers_int;
 			}
 
+			void MakeAMove(BoardState state, int i, int j, int player)
+			{
+				if (state.Board[i, j] != EMPTY)
+					throw new Exception("Клетка уже занята");
+				state.Board[i, j] = player;
+				current_state_in_tree = current_state_in_tree.children.Find(
+					x => x.Is_equivalent(state, used_coords));
+			}
+
+			(int, int) ComputerTurn()
+			{
+				var children = current_state_in_tree.children;
+				//var min_loss = children.Select(x => x.losing_proportion).Min();
+
+				var max_win = children.Select(x => x.win_proportion).Max();
+				List<BoardState> max_win_Children = children.Where(x => x.win_proportion == max_win).ToList();
+				var max_draw = max_win_Children.Select(x => x.draw_proportion).Max();
+				List<BoardState> max_draw_Children = max_win_Children.Where(x => x.draw_proportion == max_draw).ToList();
+				var random = new Random();
+				var c = max_draw_Children[random.Next(max_draw_Children.Count)];
+				return (c.move.i, c.move.j);
+			}
+
+			bool IsGameEnd(BoardState B)
+			{
+				if (B.is_terminating)
+				{
+					string ans = "";
+					ans += ans_end;
+					if (B.win_proportion == 1)
+						ans += "Выиграл первый игрок";
+					else if (B.losing_proportion == 1)
+						ans += "Выиграл второй игрок";
+					else
+						ans += "Ничья";
+					Console.WriteLine(ans + "\n");
+					return true;
+				}
+				return false;
+			}
+
 			try
 			{
-				int[,] EmptyBoard = new int[n, m];
-				for (int i = 0; i < n; i++)
-				{
-					for (int j = 0; j < m; j++)
-					{
-						EmptyBoard[i, j] = 0;
-					}
-				}
-			State_printing:
-				PrintBoardState(EmptyBoard);
-				int[] input_sign_coords = parse_line(Console.ReadLine()).ToArray();
-				try
-				{
-					if (input_sign_coords.Length != 2)
-						throw new ArgumentException("Неверное количество координат");
-					int ii = input_sign_coords[0];//строка
-					int jj = input_sign_coords[1];//столбец
-					if (!(0 <= ii && ii < n && 0 <= jj && jj < m) 
-						// || тут  0 0 и 0 n-1 и в последней строке не играются
-						)
-						throw new ArgumentException("Неверные координаты");
-				}
-				catch (Exception ex)
-				{
-					Console.WriteLine(ex.Message);
-					goto State_printing;
-				}
+				BoardState root = MakePlayTree();
+				current_state_in_tree = root;
 
+				BoardState state = new BoardState(n, m, used_coords, EMPTY);
+				Console.WriteLine("Игра началась");
+				PrintBoardState(state.Board);
+				string input = "";
+				bool can_player1_make_a_move = true;//потому что компьютер ходит первым
+				while (true)
+				{
+
+					int i, j;
+					if (can_player1_make_a_move)
+					{
+						(i, j) = ComputerTurn();
+						MakeAMove(state, i, j, PLAYER1);
+						Console.WriteLine("Ход компьютера:");
+						Console.WriteLine($"Частоты (для первого игрока): выигрышей - {state.win_proportion}, ничьих - {state.draw_proportion}, проигрышей - {state.losing_proportion}");
+						PrintBoardState(state.Board);
+						if (IsGameEnd(current_state_in_tree))
+							return ans;
+					}
+					try
+					{
+						can_player1_make_a_move = false;
+						input = Console.ReadLine();
+						if (input == interrupt_symbol)
+							break;
+						int[] input_coords = parse_line(input).ToArray();
+						if (input_coords.Length != 2)
+							throw new ArgumentException("Неверное количество координат");
+						i = input_coords[0];//строка
+						j = input_coords[1];//столбец
+						if (!used_coords.Contains((i, j)))
+							throw new ArgumentException($"Неверные координаты: i = {i}, j = {j}");
+
+						MakeAMove(state, i, j, PLAYER2);
+						can_player1_make_a_move = true;
+						PrintBoardState(state.Board);
+						if (IsGameEnd(current_state_in_tree))
+							return ans;
+					}
+					catch (Exception ex)
+					{
+						Console.WriteLine(ex.Message);
+						PrintBoardState(state.Board);
+					}
+
+				}
 			}
 			catch (Exception ex)
 			{
@@ -719,7 +960,6 @@ namespace AlgorithmComplexityTheory
 		/// <param name="f"></param>
 		static void ConsoleInputCycle(string invite, Func<string, string> f)
 		{
-			string interrupt_symbol = "q";
 			string input;
 			Console.WriteLine("Для выхода введите " + interrupt_symbol);
 
