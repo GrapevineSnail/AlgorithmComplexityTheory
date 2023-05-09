@@ -598,7 +598,6 @@ namespace AlgorithmComplexityTheory
 			public double draw_proportion;                                      //доля ничьих
 			public double losing_proportion;                                    //доля проигрышей
 
-
 			public int Empty_cells_cnt
 			{
 				get { return empty_cells_cnt; }
@@ -660,52 +659,60 @@ namespace AlgorithmComplexityTheory
 				return ans;
 			}
 
-			public string PrintBoardState(int PLAYER1, int PLAYER2)
+			public void PrintBoardState(int PLAYER1, int PLAYER2, List<(int, int)> used_coords)
 			{
-				string response = "";
-				try
-				{
-					Dictionary<int, string> sign = new Dictionary<int, string>()
+				int n = this.board.GetLength(0);
+				int m = this.board.GetLength(1);
+				int rn = n * 2 + 2;
+				int rm = m * 3 + m + 3;
+				string[][] response = new string[rn][];
+				string header1 = "  | 0 | 1 | 2 | 3 | 4 |";
+				string header2 = " -0-1-2-";
+				string vert_sep = "|";
+				string horizontal_bound = "+---+";
+				Dictionary<int, string> sign = new Dictionary<int, string>()
 					{
 						{ EMPTY, " " },
 						{ PLAYER1, "X" },
 						{ PLAYER2, "O" }
 					};
-					string txt_columns = "  | 0 | 1 | 2 | 3 | 4 |\n";
-					string[] txt_rows = { "0", "1", "2" };
-					string txt_sep1 = "-     +---+---+---+\n";
-					string txt_sep2 = "- +---+---+---+---+---+\n";
-					string vert_sep = "|";
-					string print_cell(int i, int j)
-					{
-						return vert_sep + String.Format($" {{0,-{1}}} ", sign[this.board[i, j]]);
-					}
-
-					response += txt_columns;
-					response += txt_sep1;
-					for (int i = 0; i < this.board.GetLength(0); i++)
-					{
-						response += txt_rows[i] + " ";
-						if (i == 1)
-							response += print_cell(i, 0);
-						else
-							response += "    ";
-						for (int j = 1; j < this.board.GetLength(1) - 1; j++)
-							response += print_cell(i, j);
-						if (i == 1)
-							response += print_cell(i, 4);
-						response += vert_sep + "\n";
-						if (i == 0 || i == 1)
-							response += txt_sep2;
-					}
-					response += txt_sep1;
-				}
-				catch (Exception ex)
+				for (int i = 0; i < rn; i++)
 				{
-					response += ex.Message;
+					response[i] = new string[rm];
+					for (int j = 0; j < rm; j++)
+					{
+						if (i == 0)
+							response[i][j] = header1[j].ToString();
+						else if (j == 0)
+							response[i][j] = header2[i].ToString();
+						else
+							response[i][j] = " ";
+					}
 				}
-				Console.WriteLine(response);
-				return response;
+				string[][] cell = new string[3][];
+				for (int i = 0; i < 3; i++)
+				{
+					cell[i] = new string[5];
+					for (int j = 0; j < 5; j++)
+						cell[i][j] = (i == 0 || i == 2) ?
+							horizontal_bound[j].ToString() : (j == 0 || j == 4) ? 
+							vert_sep : " ";
+				}
+				void set_cell(int i, int j)
+				{
+					if (used_coords.Contains((i, j)))
+					{
+						cell[1][2] = sign[this.board[i, j]];
+						for (int k1 = 0; k1 < 3; k1++)
+							for (int k2 = 0; k2 < 5; k2++)
+								response[i * 2 + 1 + k1][j * 4 + 2 + k2] = cell[k1][k2];
+					}
+				}
+				for (int i = 0; i < n; i++)
+					for (int j = 0; j < m; j++)
+						set_cell(i, j);
+				for (int i = 0; i < response.GetLength(0); i++)
+					Console.WriteLine(string.Join("", response[i]));
 			}
 
 			public void check_termination(List<(int i, int j)[]>[,] lines_of_cell, int PLAYER1, int PLAYER2)
@@ -771,7 +778,7 @@ namespace AlgorithmComplexityTheory
 					used_coords.Add((i, j));
 			//var deleted_cells = new List<(int, int)> { (0, 0), (0, 4), (2, 0), (2, 4) };
 			var deleted_cells = new List<(int, int)> { (0, 0), (0, 4), (2, 0), (2, 4),
-				(1,0)//, (1,4),
+				//(1,0), (1,4),
 				//(2,1),(2,2),(2,3),
 				//(1,1),(1,2),(1,3)
 			};
@@ -780,6 +787,16 @@ namespace AlgorithmComplexityTheory
 			const int PLAYER1 = 1; // обозначает знак (крестик, нолик и т.д.) игрока
 			const int PLAYER2 = 2;
 			BoardState current_state_in_tree; //текущее место в дереве в процессе игры
+
+			int counter_for_print_info = 0;
+			void draw_progress_info(string info)
+			{
+				counter_for_print_info++;
+				if (counter_for_print_info % 100000 == 0)
+				{
+					Console.Write(info + string.Format(". {0:f1} сек.\n", watch.Elapsed.TotalSeconds));
+				}
+			}
 
 			int other_player_sign(int s)//вернет знак другого игрока, не того, кто в аргументе
 			{
@@ -865,6 +882,7 @@ namespace AlgorithmComplexityTheory
 								queue.Enqueue(child);
 						}
 					}
+					draw_progress_info("Генерация дерева игры");
 				}
 
 				bool is_all_children_evaluated(double win_proportion, double draw_proportion, double losing_proportion)
@@ -879,7 +897,7 @@ namespace AlgorithmComplexityTheory
 				{
 					var cur_board = stack.Pop();
 					var next_sign = other_player_sign(cur_board.Who_made_the_move);
-					double win=0, draw=0, loss=0;
+					double win = 0, draw = 0, loss = 0;
 					if (next_sign == PLAYER2)
 					{//второй игрок может пойти куда угодно с одинаковой вероятностью
 						(win, draw, loss) = mean_proportions(cur_board.children);
@@ -887,7 +905,7 @@ namespace AlgorithmComplexityTheory
 					else if (next_sign == PLAYER1)
 					{
 						ComputerTurn(cur_board, out var win_draw_loss, out var admissible_states);
-						(win, draw, loss) = win_draw_loss;						
+						(win, draw, loss) = win_draw_loss;
 					}
 					if (is_all_children_evaluated(win, draw, loss))
 					{//если все частоты в сумме дадут 1 (частота достоверного события - один из результатов обязательно произойдёт)
@@ -901,6 +919,7 @@ namespace AlgorithmComplexityTheory
 						foreach (BoardState b in cur_board.children.Where(x => !x.Is_terminating).ToList())
 							stack.Push(b);
 					}
+					draw_progress_info("Оценка дерева игры");
 				}
 				return root;
 			}
@@ -998,7 +1017,7 @@ namespace AlgorithmComplexityTheory
 
 				BoardState state = new BoardState(n, m, used_coords, EMPTY);
 				Console.WriteLine("Игра началась");
-				state.PrintBoardState(PLAYER1, PLAYER2);
+				state.PrintBoardState(PLAYER1, PLAYER2, used_coords);
 				string input = "";
 				bool can_player1_make_a_move = true;//потому что компьютер ходит первым
 				while (true)
@@ -1011,7 +1030,7 @@ namespace AlgorithmComplexityTheory
 						state = MakeAMove(state, i, j, PLAYER1);
 						Console.WriteLine("Ход компьютера:");
 						Console.WriteLine($"Частоты (для первого игрока): выигрышей - {state.win_proportion}, ничьих - {state.draw_proportion}, проигрышей - {state.losing_proportion}");
-						state.PrintBoardState(PLAYER1, PLAYER2);
+						state.PrintBoardState(PLAYER1, PLAYER2, used_coords);
 						if (IsGameEnd(current_state_in_tree))
 							return ans;
 					}
@@ -1031,14 +1050,14 @@ namespace AlgorithmComplexityTheory
 
 						state = MakeAMove(state, i, j, PLAYER2);
 						can_player1_make_a_move = true;
-						state.PrintBoardState(PLAYER1, PLAYER2);
+						state.PrintBoardState(PLAYER1, PLAYER2, used_coords);
 						if (IsGameEnd(current_state_in_tree))
 							return ans;
 					}
 					catch (Exception ex)
 					{
 						Console.WriteLine(ex.Message);
-						state.PrintBoardState(PLAYER1, PLAYER2);
+						state.PrintBoardState(PLAYER1, PLAYER2, used_coords);
 					}
 
 				}
